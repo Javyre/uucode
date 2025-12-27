@@ -443,7 +443,7 @@ fn isExtendedPictographic(gb: types.GraphemeBreak) bool {
     return gb == .extended_pictographic or gb == .emoji_modifier_base;
 }
 
-fn testGraphemeBreak(getActualIsBreak: fn (cp1: u21, cp2: u21, state: *BreakState) bool) !void {
+fn testGraphemeBreak(io: std.Io, getActualIsBreak: fn (cp1: u21, cp2: u21, state: *BreakState) bool) !void {
     const Ucd = @import("build/Ucd.zig");
 
     const trim = Ucd.trim;
@@ -452,10 +452,11 @@ fn testGraphemeBreak(getActualIsBreak: fn (cp1: u21, cp2: u21, state: *BreakStat
     const allocator = std.testing.allocator;
     const file_path = "ucd/auxiliary/GraphemeBreakTest.txt";
 
-    const file = try std.fs.cwd().openFile(file_path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+    defer file.close(io);
 
-    const content = try file.readToEndAlloc(allocator, 1024 * 1024 * 10);
+    const reader: std.Io.File.Reader = try file.reader(io, &.{});
+    const content = reader.interface.allocRemaining(allocator, .unlimited);
     defer allocator.free(content);
 
     var lines = std.mem.splitScalar(u8, content, '\n');
@@ -527,7 +528,7 @@ fn testGetActualComputedGraphemeBreak(cp1: u21, cp2: u21, state: *BreakState) bo
 }
 
 test "GraphemeBreakTest.txt - computeGraphemeBreak" {
-    try testGraphemeBreak(testGetActualComputedGraphemeBreak);
+    try testGraphemeBreak(std.testing.io, testGetActualComputedGraphemeBreak);
 }
 
 pub fn GraphemeBreakTable(comptime GB: type, comptime State: type) type {
@@ -622,7 +623,7 @@ pub fn isBreak(
 }
 
 test "GraphemeBreakTest.txt - isBreak" {
-    try testGraphemeBreak(isBreak);
+    try testGraphemeBreak(std.testing.io, isBreak);
 }
 
 test "long emoji zwj sequences" {

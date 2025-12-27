@@ -97,27 +97,24 @@ pub const FieldEnum = blk: {
         fields_len += @typeInfo(TableData(tableInfo.type)).@"struct".fields.len;
     }
 
-    var fields: [fields_len]std.builtin.Type.EnumField = undefined;
-    var i: usize = 0;
+    var field_names_store: [fields_len][]const u8 = undefined;
+    var field_valus_store: [fields_len]usize = undefined;
+    var field_names = std.ArrayList([]const u8).initBuffer(&field_names_store);
+    var field_valus = std.ArrayList(usize).initBuffer(&field_valus_store);
 
     for (@typeInfo(@TypeOf(tables)).@"struct".fields) |tableInfo| {
         for (@typeInfo(TableData(tableInfo.type)).@"struct".fields) |f| {
-            fields[i] = .{
-                .name = f.name,
-                .value = i,
-            };
-            i += 1;
+            field_names.appendAssumeCapacity(f.name);
+            field_valus.appendAssumeCapacity(field_valus.items.len);
         }
     }
 
-    break :blk @Type(.{
-        .@"enum" = .{
-            .tag_type = std.math.IntFittingRange(0, fields_len - 1),
-            .fields = &fields,
-            .decls = &[_]std.builtin.Type.Declaration{},
-            .is_exhaustive = true,
-        },
-    });
+    break :blk @Enum(
+        usize,
+        .exhaustive,
+        field_names.items,
+        field_valus.items[0..field_names.items.len],
+    );
 };
 
 fn DataField(comptime field: []const u8) type {

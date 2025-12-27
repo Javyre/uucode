@@ -708,7 +708,7 @@ fn isExtendedPictographic(gb: types_x.GraphemeBreakNoControl) bool {
     return gb == .extended_pictographic or gb == .emoji_modifier_base;
 }
 
-fn testGraphemeBreakNoControl(getActualIsBreak: fn (cp1: u21, cp2: u21, state: *uucode.grapheme.BreakState) bool) !void {
+fn testGraphemeBreakNoControl(io: std.Io, getActualIsBreak: fn (cp1: u21, cp2: u21, state: *uucode.grapheme.BreakState) bool) !void {
     const Ucd = @import("../build/Ucd.zig");
 
     const trim = Ucd.trim;
@@ -717,10 +717,11 @@ fn testGraphemeBreakNoControl(getActualIsBreak: fn (cp1: u21, cp2: u21, state: *
     const allocator = std.testing.allocator;
     const file_path = "ucd/auxiliary/GraphemeBreakTest.txt";
 
-    const file = try std.fs.cwd().openFile(file_path, .{});
-    defer file.close();
+    const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+    defer file.close(io);
 
-    const content = try file.readToEndAlloc(allocator, 1024 * 1024 * 10);
+    const reader: std.Io.File.Reader = try file.reader(io, &.{});
+    const content = reader.interface.allocRemaining(allocator, .unlimited);
     defer allocator.free(content);
 
     var lines = std.mem.splitScalar(u8, content, '\n');
@@ -807,7 +808,7 @@ fn testGetActualComputedGraphemeBreakNoControl(cp1: u21, cp2: u21, state: *uucod
 }
 
 test "GraphemeBreakTest.txt - x.computeGraphemeBreakNoControl" {
-    try testGraphemeBreakNoControl(testGetActualComputedGraphemeBreakNoControl);
+    try testGraphemeBreakNoControl(std.testing.io, testGetActualComputedGraphemeBreakNoControl);
 }
 
 pub fn precomputedGraphemeBreakNoControl(
@@ -838,5 +839,5 @@ pub fn isBreakNoControl(
 }
 
 test "GraphemeBreakTest.txt - x.isBreakNoControl" {
-    try testGraphemeBreakNoControl(isBreakNoControl);
+    try testGraphemeBreakNoControl(std.testing.io, isBreakNoControl);
 }
