@@ -12,7 +12,7 @@ pub const std_options: std.Options = .{
         .info,
 };
 
-pub fn main() !void {
+pub fn main(init: std.process.Init.Minimal) !void {
     const total_start = try std.time.Instant.now();
     const table_configs: []const config.Table = if (config.is_updating_ucd) &.{updating_ucd} else &build_config.tables;
 
@@ -23,13 +23,16 @@ pub fn main() !void {
     defer ucd_arena.deinit();
     const ucd_allocator = ucd_arena.allocator();
 
-    var rt = std.Io.Threaded.init(gpa.allocator(), .{});
+    var rt = std.Io.Threaded.init(gpa.allocator(), .{
+        .environ = init.environ,
+        .argv0 = .init(init.args),
+    });
     defer rt.deinit();
     const io = rt.io();
 
     const ucd = try Ucd.init(io, ucd_allocator, table_configs);
 
-    var args_iter = try std.process.argsWithAllocator(ucd_allocator);
+    var args_iter = try init.args.iterateAllocator(ucd_allocator);
     _ = args_iter.skip(); // Skip program name
 
     // Get output path (only argument now)
