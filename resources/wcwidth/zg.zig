@@ -124,7 +124,7 @@ defer stage1.deinit();
 var stage2 = std.array_list.Managed(i4).init(allocator);
 defer stage2.deinit();
 
-var block: Block = [_]i4{0} ** block_size;
+var block: Block = @splat(0);
 var block_len: u16 = 0;
 
 for (0..0x110000) |i| {

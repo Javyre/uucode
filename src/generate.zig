@@ -270,8 +270,8 @@ pub fn main(init: std.process.Init.Minimal) !void {
         );
 
         var backing_subset: BackingInputSubset = undefined;
-        inline for (@typeInfo(BackingInputSubset).@"struct".fields) |field| {
-            @field(backing_subset, field.name) = @field(backing, field.name);
+        inline for (@typeInfo(BackingInputSubset).@"struct".field_names) |f_name| {
+            @field(backing_subset, f_name) = @field(backing, f_name);
         }
 
         const Tracking = config.Tracking(
@@ -282,13 +282,13 @@ pub fn main(init: std.process.Init.Minimal) !void {
 
         var tracking: Tracking = undefined;
 
-        inline for (@typeInfo(Tracking).@"struct".fields) |field| {
-            const F = @FieldType(Tracking, field.name);
+        inline for (@typeInfo(Tracking).@"struct".field_names) |f_name| {
+            const F = @FieldType(Tracking, f_name);
             if (@hasDecl(F, "init")) {
-                const f = config.field(fields, field.name);
-                @field(tracking, field.name) = try .init(allocator, f);
+                const f = config.field(fields, f_name);
+                @field(tracking, f_name) = try .init(allocator, f);
             } else {
-                @field(tracking, field.name) = .{};
+                @field(tracking, f_name) = .{};
             }
         }
 
@@ -305,14 +305,14 @@ pub fn main(init: std.process.Init.Minimal) !void {
             &tracking,
         );
 
-        inline for (@typeInfo(Tracking).@"struct".fields) |field| {
-            const t = &@field(tracking, field.name);
-            const f = config.field(fields, field.name);
+        inline for (@typeInfo(Tracking).@"struct".field_names) |f_name| {
+            const t = &@field(tracking, f_name);
+            const f = config.field(fields, f_name);
             if (!try t.okay(f)) {
                 all_okay = false;
             }
-            if (@hasField(BackingOutputSubset, field.name)) {
-                @field(backing, field.name) = try t.toOwnedBacking(allocator);
+            if (@hasField(BackingOutputSubset, f_name)) {
+                @field(backing, f_name) = try t.toOwnedBacking(allocator);
             }
             t.deinit(allocator);
         }
@@ -374,18 +374,18 @@ pub fn main(init: std.process.Init.Minimal) !void {
         \\
     );
 
-    inline for (@typeInfo(Backing).@"struct".fields) |field| {
-        const info = @typeInfo(field.type);
+    inline for (@typeInfo(Backing).@"struct".field_names, @typeInfo(Backing).@"struct".field_types) |fname, ftype| {
+        const info = @typeInfo(ftype);
         if (info != .pointer or info.pointer.size != .slice) continue;
 
         const T = info.pointer.child;
 
         try writer.print("const backing_{s}: []const {s} = ", .{
-            field.name,
+            fname,
             @typeName(T),
         });
 
-        const b = @field(backing, field.name);
+        const b = @field(backing, fname);
 
         if (T == u8) {
             try writer.print("\"{s}\";\n", .{b});
@@ -425,16 +425,16 @@ pub fn main(init: std.process.Init.Minimal) !void {
         \\
     );
 
-    inline for (@typeInfo(Backing).@"struct".fields) |field| {
-        const info = @typeInfo(field.type);
+    inline for (@typeInfo(Backing).@"struct".field_names, @typeInfo(Backing).@"struct".field_types) |fname, ftype| {
+        const info = @typeInfo(ftype);
         if (info == .pointer and info.pointer.size == .slice) {
             try writer.print("    .{s} = backing_{s},\n", .{
-                field.name,
-                field.name,
+                fname,
+                fname,
             });
         } else {
-            try writer.print("    .{s} = ", .{field.name});
-            try @field(backing, field.name).write(writer);
+            try writer.print("    .{s} = ", .{fname});
+            try @field(backing, fname).write(writer);
             try writer.writeAll(",\n");
         }
     }
@@ -525,23 +525,23 @@ pub fn main(init: std.process.Init.Minimal) !void {
 }
 
 fn hashRow(comptime Row: type, hasher: anytype, row: Row) void {
-    inline for (@typeInfo(Row).@"struct".fields) |field| {
-        if (comptime @typeInfo(field.type) == .@"struct" and @hasDecl(field.type, "autoHash")) {
-            @field(row, field.name).autoHash(hasher);
+    inline for (@typeInfo(Row).@"struct".field_names, @typeInfo(Row).@"struct".field_types) |fname, ftype| {
+        if (comptime @typeInfo(ftype) == .@"struct" and @hasDecl(ftype, "autoHash")) {
+            @field(row, fname).autoHash(hasher);
         } else {
-            std.hash.autoHash(hasher, @field(row, field.name));
+            std.hash.autoHash(hasher, @field(row, fname));
         }
     }
 }
 
 fn eqlRow(comptime Row: type, a: Row, b: Row) bool {
-    inline for (@typeInfo(Row).@"struct".fields) |field| {
-        if (comptime @typeInfo(field.type) == .@"struct" and @hasDecl(field.type, "eql")) {
-            if (!@field(a, field.name).eql(@field(b, field.name))) {
+    inline for (@typeInfo(Row).@"struct".field_names, @typeInfo(Row).@"struct".field_types) |fname, ftype| {
+        if (comptime @typeInfo(ftype) == .@"struct" and @hasDecl(ftype, "eql")) {
+            if (!@field(a, fname).eql(@field(b, fname))) {
                 return false;
             }
         } else {
-            if (!std.meta.eql(@field(a, field.name), @field(b, field.name))) {
+            if (!std.meta.eql(@field(a, fname), @field(b, fname))) {
                 return false;
             }
         }
@@ -797,7 +797,7 @@ pub fn writeTableRows(
     );
 
     if (@typeInfo(Row).@"struct".layout == .@"packed") {
-        const IntEquivalent = std.meta.Int(.unsigned, @bitSizeOf(Row));
+        const IntEquivalent = @Int(.unsigned, @bitSizeOf(Row));
 
         try writer.print("&@as([{d}]{s}_Row, @bitCast([_]{s}{{\n", .{ rows.len, TypePrefix, @typeName(IntEquivalent) });
 
@@ -821,10 +821,10 @@ pub fn writeTableRows(
                 \\
             );
 
-            inline for (@typeInfo(Row).@"struct".fields) |field| {
-                try writer.print("    .{s} = ", .{field.name});
+            inline for (@typeInfo(Row).@"struct".field_names, @typeInfo(Row).@"struct".field_types) |fname, ftype| {
+                try writer.print("    .{s} = ", .{fname});
 
-                try storage.writeField(field.type, writer, @field(row, field.name));
+                try storage.writeField(ftype, writer, @field(row, fname));
 
                 try writer.writeAll(",\n");
             }

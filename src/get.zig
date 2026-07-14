@@ -3,6 +3,11 @@ const std = @import("std");
 const tables_module = @import("tables");
 const tables = tables_module.tables;
 
+const StructField = struct {
+    name: []const u8,
+    type: type,
+};
+
 fn TableData(comptime Table: anytype) type {
     const DataSlice = if (@hasField(Table, "stage3"))
         @FieldType(Table, "stage3")
@@ -11,10 +16,13 @@ fn TableData(comptime Table: anytype) type {
     return @typeInfo(DataSlice).pointer.child;
 }
 
-fn tableInfoFor(comptime field: []const u8) std.builtin.Type.StructField {
-    inline for (@typeInfo(@TypeOf(tables)).@"struct".fields) |tableInfo| {
-        if (@hasField(TableData(tableInfo.type), field)) {
-            return tableInfo;
+fn tableInfoFor(comptime field: []const u8) StructField {
+    inline for (@typeInfo(@TypeOf(tables)).@"struct".field_types, @typeInfo(@TypeOf(tables)).@"struct".field_names) |tableInfo_type, tableInfo_name| {
+        if (@hasField(TableData(tableInfo_type), field)) {
+            return .{
+                .name = tableInfo_name,
+                .type = tableInfo_type,
+            };
         }
     }
 
@@ -22,8 +30,8 @@ fn tableInfoFor(comptime field: []const u8) std.builtin.Type.StructField {
 }
 
 pub fn hasField(comptime field: []const u8) bool {
-    inline for (@typeInfo(@TypeOf(tables)).@"struct".fields) |tableInfo| {
-        if (@hasField(TableData(tableInfo.type), field)) {
+    inline for (@typeInfo(@TypeOf(tables)).@"struct".field_types) |tableInfo_type| {
+        if (@hasField(TableData(tableInfo_type), field)) {
             return true;
         }
     }
@@ -49,9 +57,9 @@ fn tableFor(comptime field: []const u8) TableFor(field) {
 }
 
 fn GetTable(comptime table_name: []const u8) type {
-    inline for (@typeInfo(@TypeOf(tables)).@"struct".fields) |tableInfo| {
-        if (std.mem.eql(u8, tableInfo.name, table_name)) {
-            return tableInfo.type;
+    inline for (@typeInfo(@TypeOf(tables)).@"struct".field_names, @typeInfo(@TypeOf(tables)).@"struct".field_types) |tableInfo_name, tableInfo_type| {
+        if (std.mem.eql(u8, tableInfo_name, table_name)) {
+            return tableInfo_type;
         }
     }
 
@@ -83,8 +91,8 @@ pub fn TypeOfAll(comptime table_name: []const u8) type {
 
 pub const FieldEnum = blk: {
     var fields_len: usize = 0;
-    for (@typeInfo(@TypeOf(tables)).@"struct".fields) |tableInfo| {
-        fields_len += @typeInfo(TableData(tableInfo.type)).@"struct".fields.len;
+    for (@typeInfo(@TypeOf(tables)).@"struct".field_types) |tableInfo_type| {
+        fields_len += @typeInfo(TableData(tableInfo_type)).@"struct".field_types.len;
     }
 
     const TagInt = std.math.IntFittingRange(0, fields_len - 1);
@@ -92,9 +100,9 @@ pub const FieldEnum = blk: {
     var field_values: [fields_len]TagInt = undefined;
     var i: usize = 0;
 
-    for (@typeInfo(@TypeOf(tables)).@"struct".fields) |tableInfo| {
-        for (@typeInfo(TableData(tableInfo.type)).@"struct".fields) |f| {
-            field_names[i] = f.name;
+    for (@typeInfo(@TypeOf(tables)).@"struct".field_types) |tableInfo_type| {
+        for (@typeInfo(TableData(tableInfo_type)).@"struct".field_names) |f_name| {
+            field_names[i] = f_name;
             field_values[i] = i;
             i += 1;
         }

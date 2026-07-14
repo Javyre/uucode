@@ -6,10 +6,11 @@ const inlineAssert = @import("config.zig").quirks.inlineAssert;
 /// issues with large structs.
 pub fn MultiSlice(comptime T: type) type {
     @setEvalBranchQuota(50_000);
-    const fields = std.meta.fields(T);
+
+    const fields = @typeInfo(T).@"struct";
 
     return struct {
-        ptrs: [fields.len][*]u8,
+        ptrs: [fields.field_names.len][*]u8,
         len: usize,
         capacity: usize,
 
@@ -36,26 +37,26 @@ pub fn MultiSlice(comptime T: type) type {
         }
 
         pub fn set(self: Self, index: usize, elem: T) void {
-            inline for (fields, 0..) |field_info, i| {
-                self.items(@as(Field, @enumFromInt(i)))[index] = @field(elem, field_info.name);
+            inline for (fields.field_names, 0..) |field_name, i| {
+                self.items(@as(Field, @enumFromInt(i)))[index] = @field(elem, field_name);
             }
         }
 
         pub fn get(self: Self, index: usize) T {
             var result: T = undefined;
-            inline for (fields, 0..) |field_info, i| {
-                @field(result, field_info.name) = self.items(@as(Field, @enumFromInt(i)))[index];
+            inline for (fields.field_names, 0..) |field_name, i| {
+                @field(result, field_name) = self.items(@as(Field, @enumFromInt(i)))[index];
             }
             return result;
         }
 
         pub fn subset(self: Self, comptime Subset: type) MultiSlice(Subset) {
-            const subset_fields = std.meta.fields(Subset);
+            const subset_fields = @typeInfo(Subset).@"struct";
             var result: MultiSlice(Subset) = undefined;
-            inline for (subset_fields, 0..) |sf, dst_idx| {
-                const src_idx = comptime for (fields, 0..) |f, i| {
-                    if (std.mem.eql(u8, f.name, sf.name)) break i;
-                } else @compileError("subset field '" ++ sf.name ++ "' not found in source");
+            inline for (subset_fields.field_names, 0..) |field_name, dst_idx| {
+                const src_idx = comptime for (fields.field_names, 0..) |name, i| {
+                    if (std.mem.eql(u8, name, field_name)) break i;
+                } else @compileError("subset field '" ++ field_name ++ "' not found in source");
                 result.ptrs[dst_idx] = self.ptrs[src_idx];
             }
             result.len = self.len;
@@ -64,21 +65,21 @@ pub fn MultiSlice(comptime T: type) type {
         }
 
         pub fn memset(self: Self, elem: T) void {
-            inline for (fields, 0..) |field_info, i| {
+            inline for (fields.field_names, fields.field_types, 0..) |field_name, F, i| {
                 const field: Field = @enumFromInt(i);
-                const value = @field(elem, field_info.name);
-                const F = field_info.type;
+                const value = @field(elem, field_name);
                 const slice = self.items(field);
+
                 if (@sizeOf(F) == 0) {
                     // Zero-size types have nothing to set.
-                } else if (@bitSizeOf(F) != @sizeOf(F) * 8) {
+                } else if (@typeInfo(F) != .@"struct" and @bitSizeOf(F) != @sizeOf(F) * 8) {
                     // Types like bool, u3, or enum(u2) have fewer bits than
                     // their storage size, so @memset can't be called directly
                     // on their slices. Convert to a byte-array representation
                     // by zero-extending into a storage-sized int, then @memset
                     // the reinterpreted byte array for the same performance as
                     // a normal @memset.
-                    const StorageInt = std.meta.Int(.unsigned, @sizeOf(F) * 8);
+                    const StorageInt = @Int(.unsigned, @sizeOf(F) * 8);
                     const storage: StorageInt = switch (@typeInfo(F)) {
                         .int => @intCast(value),
                         .bool => @intFromBool(value),
@@ -100,7 +101,7 @@ pub fn MultiSlice(comptime T: type) type {
         }
 
         pub fn initCapacity(allocator: std.mem.Allocator, capacity: usize) std.mem.Allocator.Error!Self {
-            if (fields.len == 0 or capacity == 0) {
+            if (fields.field_names.len == 0 or capacity == 0) {
                 return .{ .ptrs = undefined, .len = 0, .capacity = capacity };
             }
             const byte_count = capacityInBytes(capacity);
@@ -116,41 +117,41 @@ pub fn MultiSlice(comptime T: type) type {
 
         const alignment: std.mem.Alignment = blk: {
             var max_align: usize = 1;
-            for (fields) |field_info| {
-                const a: usize = if (@sizeOf(field_info.type) == 0)
+            for (fields.field_types, fields.field_attrs) |field_type, field_attr| {
+                const a: usize = if (@sizeOf(field_type) == 0)
                     1
                 else
-                    field_info.alignment orelse @alignOf(field_info.type);
+                    field_attr.@"align" orelse @alignOf(field_type);
                 if (a > max_align) max_align = a;
             }
             break :blk @enumFromInt(std.math.log2(max_align));
         };
 
-        const sorted_sizes: [fields.len]usize = blk: {
-            var sizes: [fields.len]usize = undefined;
+        const sorted_sizes: [fields.field_names.len]usize = blk: {
+            var sizes: [fields.field_names.len]usize = undefined;
             for (sortOrder(), 0..) |si, i| {
-                sizes[i] = @sizeOf(fields[si].type);
+                sizes[i] = @sizeOf(fields.field_types[si]);
             }
             break :blk sizes;
         };
 
-        const sorted_fields: [fields.len]usize = sortOrder();
+        const sorted_fields: [fields.field_names.len]usize = sortOrder();
 
-        fn sortOrder() [fields.len]usize {
-            @setEvalBranchQuota(fields.len * fields.len + 100);
-            var order: [fields.len]usize = undefined;
-            for (0..fields.len) |i| order[i] = i;
-            for (0..fields.len) |i| {
+        fn sortOrder() [fields.field_names.len]usize {
+            @setEvalBranchQuota(fields.field_names.len * fields.field_names.len + 100);
+            var order: [fields.field_names.len]usize = undefined;
+            for (0..fields.field_names.len) |i| order[i] = i;
+            for (0..fields.field_names.len) |i| {
                 var best = i;
-                for (i + 1..fields.len) |j| {
-                    const best_align = if (@sizeOf(fields[order[best]].type) == 0)
+                for (i + 1..fields.field_names.len) |j| {
+                    const best_align = if (@sizeOf(fields.field_types[order[best]]) == 0)
                         1
                     else
-                        fields[order[best]].alignment orelse @alignOf(fields[order[best]].type);
-                    const j_align = if (@sizeOf(fields[order[j]].type) == 0)
+                        fields.field_attrs[order[best]].@"align" orelse @alignOf(fields.field_types[order[best]]);
+                    const j_align = if (@sizeOf(fields.field_types[order[j]]) == 0)
                         1
                     else
-                        fields[order[j]].alignment orelse @alignOf(fields[order[j]].type);
+                        fields.field_attrs[order[j]].@"align" orelse @alignOf(fields.field_types[order[j]]);
                     if (j_align > best_align) best = j;
                 }
                 const tmp = order[i];

@@ -6,7 +6,7 @@ const Allocator = std.mem.Allocator;
 
 pub fn RoundedInt(comptime signedness: std.builtin.Signedness, comptime bit_count: u16) type {
     const rounded_bits = std.mem.alignForward(u16, if (bit_count == 0) 1 else bit_count, 8);
-    return std.meta.Int(signedness, rounded_bits);
+    return @Int(signedness, rounded_bits);
 }
 
 pub fn RoundedIntFitting(comptime from: comptime_int, comptime to: comptime_int) type {
@@ -75,7 +75,7 @@ pub fn Row(
     @setEvalBranchQuota(50_000);
     var field_names: [fields.len][]const u8 = undefined;
     var field_types: [fields.len]type = undefined;
-    var field_attrs: [fields.len]std.builtin.Type.StructField.Attributes = undefined;
+    var field_attrs: [fields.len]std.builtin.Type.Struct.FieldAttributes = undefined;
 
     for (fields, fields_is_packed, 0..) |field, is_field_packed, i| {
         const F = Field(field, is_field_packed or table_packing == .@"packed");
@@ -104,7 +104,7 @@ pub fn DeclStruct(
     @setEvalBranchQuota(fields.len * 100 + 1000);
     var field_names: [fields.len][]const u8 = undefined;
     var field_types: [fields.len]type = undefined;
-    var field_attrs: [fields.len]std.builtin.Type.StructField.Attributes = undefined;
+    var field_attrs: [fields.len]std.builtin.Type.Struct.FieldAttributes = undefined;
     var i: usize = 0;
 
     for (fields, fields_is_packed) |field, is_field_packed| {
@@ -351,10 +351,7 @@ pub fn Slice(
             }
         }
 
-        pub const value = if (is_shift)
-            void{}
-        else
-            _value;
+        pub const value = if (is_shift) {} else _value;
 
         fn _valueWith(
             self: *const Self,
@@ -865,24 +862,24 @@ pub fn Union(comptime T: type, comptime _ShiftInt: type, comptime is_packed: boo
     const info = @typeInfo(T).@"union";
     const Tag = info.tag_type.?;
     const Int = @typeInfo(Tag).@"enum".tag_type;
-    inlineAssert(Int == std.meta.Int(.unsigned, @bitSizeOf(Tag)));
+    inlineAssert(Int == @Int(.unsigned, @bitSizeOf(Tag)));
 
     const ShiftMember = if (is_shift)
         Shift(_ShiftInt, false, is_packed)
     else
         void;
 
-    var field_names: [info.fields.len][]const u8 = undefined;
-    var field_types: [info.fields.len]type = undefined;
-    var field_attrs: [info.fields.len]std.builtin.Type.UnionField.Attributes = undefined;
-    for (info.fields, 0..) |f, i| {
-        const FieldType = if (is_shift and f.type == u21)
+    var field_names: [info.field_names.len][]const u8 = undefined;
+    var field_types: [info.field_names.len]type = undefined;
+    var field_attrs: [info.field_names.len]std.builtin.Type.Union.FieldAttributes = undefined;
+    for (info.field_names, info.field_types, 0..) |f_name, f_type, i| {
+        const FieldType = if (is_shift and f_type == u21)
             ShiftMember
-        else if (is_packed and is_shift and f.type == void)
+        else if (is_packed and is_shift and f_type == void)
             ShiftMember
         else
-            f.type;
-        field_names[i] = f.name;
+            f_type;
+        field_names[i] = f_name;
         field_types[i] = FieldType;
         field_attrs[i] = .{
             .@"align" = if (is_packed) null else @alignOf(FieldType),

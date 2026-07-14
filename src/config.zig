@@ -84,8 +84,8 @@ pub const Field = struct {
                 .max_value = self.max_value,
             };
 
-            inline for (@typeInfo(@TypeOf(overrides)).@"struct".fields) |f| {
-                @field(result, f.name) = @field(overrides, f.name);
+            inline for (@typeInfo(@TypeOf(overrides)).@"struct".field_names) |fname| {
+                @field(result, fname) = @field(overrides, fname);
             }
 
             return result;
@@ -219,8 +219,8 @@ pub const Field = struct {
             .@"union" => {
                 if (self.cp_packing == .shift) {
                     const info = @typeInfo(self.type).@"union";
-                    const has_u21 = for (info.fields) |f| {
-                        if (f.type == u21) break true;
+                    const has_u21 = for (info.field_types) |f_type| {
+                        if (f_type == u21) break true;
                     } else false;
                     if (!has_u21) {
                         @compileError("Union field '" ++ self.name ++ "' with shift packing must have at least one u21 member");
@@ -270,8 +270,8 @@ pub const Field = struct {
                 return isPackable(optional.child);
             },
             .@"union" => |info| {
-                return for (info.fields) |f| {
-                    if (f.type != void and !isPackable(f.type)) {
+                return for (info.field_types) |f_type| {
+                    if (f_type != void and !isPackable(f_type)) {
                         break false;
                     }
                 } else true;
@@ -303,19 +303,19 @@ pub const Field = struct {
     pub fn override(self: Field, overrides: anytype) Field {
         var result = self;
 
-        inline for (@typeInfo(@TypeOf(overrides)).@"struct".fields) |f| {
-            if (!is_updating_ucd and (std.mem.eql(u8, f.name, "name") or
-                std.mem.eql(u8, f.name, "type") or
-                std.mem.eql(u8, f.name, "shift_low") or
-                std.mem.eql(u8, f.name, "shift_high") or
-                std.mem.eql(u8, f.name, "max_len") or
-                std.mem.eql(u8, f.name, "min_value") or
-                std.mem.eql(u8, f.name, "max_value")))
+        inline for (@typeInfo(@TypeOf(overrides)).@"struct".field_names) |f_name| {
+            if (!is_updating_ucd and (std.mem.eql(u8, f_name, "name") or
+                std.mem.eql(u8, f_name, "type") or
+                std.mem.eql(u8, f_name, "shift_low") or
+                std.mem.eql(u8, f_name, "shift_high") or
+                std.mem.eql(u8, f_name, "max_len") or
+                std.mem.eql(u8, f_name, "min_value") or
+                std.mem.eql(u8, f_name, "max_value")))
             {
-                @compileError("Cannot override field '" ++ f.name ++ "'");
+                @compileError("Cannot override field '" ++ f_name ++ "'");
             }
 
-            @field(result, f.name) = @field(overrides, f.name);
+            @field(result, f_name) = @field(overrides, f_name);
         }
 
         return result;
@@ -806,10 +806,10 @@ pub inline fn initField(
     if (@hasField(Track, name)) {
         const FT = @FieldType(Track, name);
         if (@hasDecl(FT, "track")) {
-            const params = @typeInfo(@TypeOf(FT.track)).@"fn".params;
-            if (params.len == 3) {
+            const num_params = @typeInfo(@TypeOf(FT.track)).@"fn".param_types.len;
+            if (num_params == 3) {
                 @field(tracking, name).track(cp, value);
-            } else if (params.len == 2) {
+            } else if (num_params == 2) {
                 @field(tracking, name).track(value);
             } else {
                 @compileError("Tracking `track` must take 2 or 3 parameters (including self)");
@@ -820,13 +820,13 @@ pub inline fn initField(
     switch (@typeInfo(F)) {
         .@"struct", .@"union", .@"enum", .@"opaque" => {
             if (@hasDecl(F, "init")) {
-                const params = @typeInfo(@TypeOf(F.init)).@"fn".params;
-                if (params.len == 1) {
+                const num_params = @typeInfo(@TypeOf(F.init)).@"fn".param_types.len;
+                if (num_params == 1) {
                     return F.init(value);
-                } else if (params.len == 2) {
+                } else if (num_params == 2) {
                     return F.init(cp, value);
                 } else {
-                    @compileError(std.fmt.comptimePrint("initField cannot be used with container with init taking {d} parameters", .{params.len}));
+                    @compileError(std.fmt.comptimePrint("initField cannot be used with container with init taking {d} parameters", .{num_params}));
                 }
             } else {
                 return value;
@@ -870,14 +870,14 @@ pub inline fn initAllocField(
     switch (@typeInfo(F)) {
         .@"struct", .@"union", .@"enum", .@"opaque" => {
             if (@hasDecl(F, "init")) {
-                const params = @typeInfo(@TypeOf(F.init)).@"fn".params;
-                if (params.len == 3) {
+                const num_params = @typeInfo(@TypeOf(F.init)).@"fn".param_types.len;
+                if (num_params == 3) {
                     return try .init(
                         allocator,
                         &@field(tracking, name),
                         value,
                     );
-                } else if (params.len == 4) {
+                } else if (num_params == 4) {
                     return try .init(
                         allocator,
                         &@field(tracking, name),
