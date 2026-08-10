@@ -189,7 +189,7 @@ test "parseCp" {
 }
 
 pub fn parseRange(str: []const u8) !struct { start: usize, end: usize } {
-    if (std.mem.indexOf(u8, str, "..")) |dot_idx| {
+    if (std.mem.find(u8, str, "..")) |dot_idx| {
         const start = try parseCp(str[0..dot_idx]);
         const end = try parseCp(str[dot_idx + 2 ..]);
         return .{ .start = start, .end = end + 1 };
@@ -218,7 +218,7 @@ fn readFile(allocator: std.mem.Allocator, io: std.Io, file_path: []const u8) ![]
 }
 
 pub fn trim(line: []const u8) []const u8 {
-    if (std.mem.indexOf(u8, line, "#")) |idx| {
+    if (std.mem.find(u8, line, "#")) |idx| {
         return std.mem.trim(u8, line[0..idx], " \t\r");
     }
     return std.mem.trim(u8, line, " \t\r");
@@ -347,7 +347,11 @@ const UnicodeData = struct {
 
                 if (std.mem.startsWith(u8, decomposition_str, "<")) {
                     // Compatibility decomposition with type in angle brackets
-                    const end_bracket = std.mem.indexOf(u8, decomposition_str, ">") orelse {
+                    const end_bracket = std.mem.find(
+                        u8,
+                        decomposition_str,
+                        ">",
+                    ) orelse {
                         std.log.err("Invalid decomposition format: {s}", .{decomposition_str});
                         unreachable;
                     };

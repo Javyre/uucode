@@ -20,7 +20,7 @@ pub fn MultiSlice(comptime T: type) type {
 
         pub fn FieldType(comptime field: Field) type {
             @setEvalBranchQuota(50_000);
-            return std.meta.fieldInfo(T, field).type;
+            return @FieldType(T, @tagName(field));
         }
 
         pub fn items(self: Self, comptime field: Field) []FieldType(field) {
@@ -28,7 +28,7 @@ pub fn MultiSlice(comptime T: type) type {
             if (self.capacity == 0) {
                 return &[_]F{};
             }
-            const byte_ptr = self.ptrs[@intFromEnum(field)];
+            const byte_ptr = self.ptrs[@backingInt(field)];
             const casted_ptr: [*]F = if (@sizeOf(F) == 0)
                 undefined
             else
@@ -38,14 +38,16 @@ pub fn MultiSlice(comptime T: type) type {
 
         pub fn set(self: Self, index: usize, elem: T) void {
             inline for (fields.field_names, 0..) |field_name, i| {
-                self.items(@as(Field, @enumFromInt(i)))[index] = @field(elem, field_name);
+                const field: Field = @fromBackingInt(@intCast(i));
+                self.items(field)[index] = @field(elem, field_name);
             }
         }
 
         pub fn get(self: Self, index: usize) T {
             var result: T = undefined;
             inline for (fields.field_names, 0..) |field_name, i| {
-                @field(result, field_name) = self.items(@as(Field, @enumFromInt(i)))[index];
+                const field: Field = @fromBackingInt(@intCast(i));
+                @field(result, field_name) = self.items(field)[index];
             }
             return result;
         }
@@ -66,7 +68,7 @@ pub fn MultiSlice(comptime T: type) type {
 
         pub fn memset(self: Self, elem: T) void {
             inline for (fields.field_names, fields.field_types, 0..) |field_name, F, i| {
-                const field: Field = @enumFromInt(i);
+                const field: Field = @fromBackingInt(@intCast(i));
                 const value = @field(elem, field_name);
                 const slice = self.items(field);
 
@@ -83,7 +85,7 @@ pub fn MultiSlice(comptime T: type) type {
                     const storage: StorageInt = switch (@typeInfo(F)) {
                         .int => @intCast(value),
                         .bool => @intFromBool(value),
-                        .@"enum" => @intFromEnum(value),
+                        .@"enum" => @backingInt(value),
                         else => @compileError("memset: unsupported non-byte-aligned type '" ++ @typeName(F) ++ "'"),
                     };
                     const ints: [*]StorageInt = @ptrCast(slice.ptr);
@@ -124,7 +126,7 @@ pub fn MultiSlice(comptime T: type) type {
                     field_attr.@"align" orelse @alignOf(field_type);
                 if (a > max_align) max_align = a;
             }
-            break :blk @enumFromInt(std.math.log2(max_align));
+            break :blk @fromBackingInt(@intCast(std.math.log2(max_align)));
         };
 
         const sorted_sizes: [fields.field_names.len]usize = blk: {

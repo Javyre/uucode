@@ -611,14 +611,14 @@ fn tablePrefix(
     allocator: std.mem.Allocator,
 ) !struct { []const u8, []const u8 } {
     const prefix = if (table.name) |name|
-        try std.fmt.allocPrint(allocator, "table_{s}", .{name})
+        try allocator.print("table_{s}", .{name})
     else
-        try std.fmt.allocPrint(allocator, "table_{d}", .{table_index});
+        try allocator.print("table_{d}", .{table_index});
 
     const TypePrefix = if (table.name) |name|
-        try std.fmt.allocPrint(allocator, "Table_{s}", .{name})
+        try allocator.print("Table_{s}", .{name})
     else
-        try std.fmt.allocPrint(allocator, "Table_{d}", .{table_index});
+        try allocator.print("Table_{d}", .{table_index});
 
     return .{ prefix, TypePrefix };
 }
@@ -649,10 +649,10 @@ pub fn writeTableRows(
     const B = Block(Stage2Elem);
 
     var row_map: RowMap(Row) = .empty;
-    var stage3: std.ArrayListUnmanaged(Row) = .empty;
+    var stage3: std.ArrayList(Row) = .empty;
     var block_map: BlockMap(B) = .empty;
-    var stage2: std.ArrayListUnmanaged(Stage2Elem) = .empty;
-    var stage1: std.ArrayListUnmanaged(u32) = .empty;
+    var stage2: std.ArrayList(Stage2Elem) = .empty;
+    var stage1: std.ArrayList(u32) = .empty;
 
     var block: B = undefined;
     var block_len: usize = 0;
