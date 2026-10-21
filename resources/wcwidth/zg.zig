@@ -3,7 +3,7 @@ var flat_map = std.AutoHashMap(u21, i4).init(allocator);
 defer flat_map.deinit();
 
 // Process DerivedEastAsianWidth.txt
-var deaw_reader = std.io.Reader.fixed(@embedFile("DerivedEastAsianWidth.txt"));
+var deaw_reader = std.Io.Reader.fixed(@embedFile("DerivedEastAsianWidth.txt"));
 
 while (deaw_reader.takeDelimiterInclusive('\n')) |took| {
     const line = std.mem.trimRight(u8, took, "\n");
@@ -11,9 +11,9 @@ while (deaw_reader.takeDelimiterInclusive('\n')) |took| {
 
     // @missing ranges
     if (std.mem.startsWith(u8, line, "# @missing: ")) {
-        const semi = std.mem.indexOfScalar(u8, line, ';').?;
+        const semi = std.mem.findScalar(u8, line, ';').?;
         const field = line[12..semi];
-        const dots = std.mem.indexOf(u8, field, "..").?;
+        const dots = std.mem.find(u8, field, "..").?;
         const from = try std.fmt.parseInt(u21, field[0..dots], 16);
         const to = try std.fmt.parseInt(u21, field[dots + 2 ..], 16);
         if (from == 0 and to == 0x10ffff) continue;
@@ -23,7 +23,7 @@ while (deaw_reader.takeDelimiterInclusive('\n')) |took| {
 
     if (line[0] == '#') continue;
 
-    const no_comment = if (std.mem.indexOfScalar(u8, line, '#')) |octo| line[0..octo] else line;
+    const no_comment = if (std.mem.findScalar(u8, line, '#')) |octo| line[0..octo] else line;
 
     var field_iter = std.mem.tokenizeAny(u8, no_comment, "; ");
     var current_code: [2]u21 = undefined;
@@ -33,7 +33,7 @@ while (deaw_reader.takeDelimiterInclusive('\n')) |took| {
         switch (i) {
             0 => {
                 // Code point(s)
-                if (std.mem.indexOf(u8, field, "..")) |dots| {
+                if (std.mem.find(u8, field, "..")) |dots| {
                     current_code = .{
                         try std.fmt.parseInt(u21, field[0..dots], 16),
                         try std.fmt.parseInt(u21, field[dots + 2 ..], 16),
@@ -62,12 +62,12 @@ while (deaw_reader.takeDelimiterInclusive('\n')) |took| {
     },
 }
 // Process DerivedGeneralCategory.txt
-var dgc_reader = std.io.Reader.fixed(@embedFile("DerivedGeneralCategory.txt"));
+var dgc_reader = std.Io.Reader.fixed(@embedFile("DerivedGeneralCategory.txt"));
 
 while (dgc_reader.takeDelimiterInclusive('\n')) |took| {
     const line = std.mem.trimRight(u8, took, "\n");
     if (line.len == 0 or line[0] == '#') continue;
-    const no_comment = if (std.mem.indexOfScalar(u8, line, '#')) |octo| line[0..octo] else line;
+    const no_comment = if (std.mem.findScalar(u8, line, '#')) |octo| line[0..octo] else line;
 
     var field_iter = std.mem.tokenizeAny(u8, no_comment, "; ");
     var current_code: [2]u21 = undefined;
@@ -77,7 +77,7 @@ while (dgc_reader.takeDelimiterInclusive('\n')) |took| {
         switch (i) {
             0 => {
                 // Code point(s)
-                if (std.mem.indexOf(u8, field, "..")) |dots| {
+                if (std.mem.find(u8, field, "..")) |dots| {
                     current_code = .{
                         try std.fmt.parseInt(u21, field[0..dots], 16),
                         try std.fmt.parseInt(u21, field[dots + 2 ..], 16),
@@ -99,7 +99,7 @@ while (dgc_reader.takeDelimiterInclusive('\n')) |took| {
                     // Spacing_Mark
                     for (current_code[0]..current_code[1] + 1) |cp| try flat_map.put(@intCast(cp), 0);
                 } else if (std.mem.eql(u8, field, "Cf")) {
-                    if (std.mem.indexOf(u8, line, "ARABIC") == null) {
+                    if (std.mem.find(u8, line, "ARABIC") == null) {
                         // Format except Arabic
                         for (current_code[0]..current_code[1] + 1) |cp| try flat_map.put(@intCast(cp), 0);
                     }
@@ -118,11 +118,11 @@ while (dgc_reader.takeDelimiterInclusive('\n')) |took| {
 var blocks_map = BlockMap.init(allocator);
 defer blocks_map.deinit();
 
-var stage1 = std.array_list.Managed(u16).init(allocator);
-defer stage1.deinit();
+var stage1: std.ArrayList(u16) = .empty;
+defer stage1.deinit(allocator);
 
-var stage2 = std.array_list.Managed(i4).init(allocator);
-defer stage2.deinit();
+var stage2: std.ArrayList(i4) = .empty;
+defer stage2.deinit(allocator);
 
 var block: Block = [_]i4{0} ** block_size;
 var block_len: u16 = 0;
@@ -189,10 +189,10 @@ for (0..0x110000) |i| {
     const gop = try blocks_map.getOrPut(block);
     if (!gop.found_existing) {
         gop.value_ptr.* = @intCast(stage2.items.len);
-        try stage2.appendSlice(&block);
+        try stage2.appendSlice(allocator, &block);
     }
 
-    try stage1.append(gop.value_ptr.*);
+    try stage1.append(allocator, gop.value_ptr.*);
     block_len = 0;
 }
 // copyv: end

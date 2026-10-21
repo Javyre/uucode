@@ -54,7 +54,7 @@ pub fn codePointWidth(cp: u21, am_width: AmbiguousWidth) i3 {
     } else if (gbp.isRegionalIndicator(cp)) {
         return 2;
     } else if (eaw.isAmbiguous(cp)) {
-        return @intFromEnum(am_width);
+        return @backingInt(am_width);
     } else {
         return 1;
     }

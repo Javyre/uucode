@@ -4,7 +4,7 @@ const config = @import("config.zig");
 const inlineAssert = config.quirks.inlineAssert;
 const Allocator = std.mem.Allocator;
 
-pub fn RoundedInt(comptime signedness: std.builtin.Signedness, comptime bit_count: u16) type {
+pub fn RoundedInt(comptime signedness: std.lang.Signedness, comptime bit_count: u16) type {
     const rounded_bits = std.mem.alignForward(u16, if (bit_count == 0) 1 else bit_count, 8);
     return @Int(signedness, rounded_bits);
 }
@@ -75,7 +75,7 @@ pub fn Row(
     @setEvalBranchQuota(50_000);
     var field_names: [fields.len][]const u8 = undefined;
     var field_types: [fields.len]type = undefined;
-    var field_attrs: [fields.len]std.builtin.Type.Struct.FieldAttributes = undefined;
+    var field_attrs: [fields.len]std.lang.Type.Struct.FieldAttributes = undefined;
 
     for (fields, fields_is_packed, 0..) |field, is_field_packed, i| {
         const F = Field(field, is_field_packed or table_packing == .@"packed");
@@ -104,7 +104,7 @@ pub fn DeclStruct(
     @setEvalBranchQuota(fields.len * 100 + 1000);
     var field_names: [fields.len][]const u8 = undefined;
     var field_types: [fields.len]type = undefined;
-    var field_attrs: [fields.len]std.builtin.Type.Struct.FieldAttributes = undefined;
+    var field_attrs: [fields.len]std.lang.Type.Struct.FieldAttributes = undefined;
     var i: usize = 0;
 
     for (fields, fields_is_packed) |field, is_field_packed| {
@@ -863,7 +863,7 @@ pub fn Union(comptime T: type, comptime _ShiftInt: type, comptime is_packed: boo
 
     var field_names: [info.field_names.len][]const u8 = undefined;
     var field_types: [info.field_names.len]type = undefined;
-    var field_attrs: [info.field_names.len]std.builtin.Type.Union.FieldAttributes = undefined;
+    var field_attrs: [info.field_names.len]std.lang.Type.Union.FieldAttributes = undefined;
     for (info.field_names, info.field_types, 0..) |field_name, field_type, i| {
         const FieldType = if (is_shift and field_type == u21)
             ShiftMember

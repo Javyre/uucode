@@ -128,8 +128,8 @@ See [src/fields.zig](./src/fields.zig) for the name and type of all fields.
 Only include the Unicode fields you actually use:
 
 ``` zig
-// In `build.zig`:
-if (b.lazyDependency("uucode", .{
+// In `build.zig`; `build` returns `!void`:
+const dep = try b.dependencyLazy("uucode", .{
     .target = target,
     .optimize = optimize,
     .fields = @as([]const []const u8, &.{
@@ -139,9 +139,8 @@ if (b.lazyDependency("uucode", .{
         "is_alphabetic",
         // ...
     }),
-})) |dep| {
-    step.root_module.addImport("uucode", dep.module("uucode"));
-}
+});
+step.root_module.addImport("uucode", dep.module("uucode"));
 ```
 
 If you forget to add a field you're using, you'll get an error such as:
@@ -158,8 +157,8 @@ Fields can be split into multiple tables using `fields_0` through `fields_9`, to
 
 
 ``` zig
-// In `build.zig`:
-if (b.lazyDependency("uucode", .{
+// In `build.zig`; `build` returns `!void`:
+const dep = try b.dependencyLazy("uucode", .{
     .target = target,
     .optimize = optimize,
     .fields_0 = @as([]const []const u8, &.{
@@ -174,9 +173,8 @@ if (b.lazyDependency("uucode", .{
         // ...
     }),
     // ... `fields_3` to `fields_9`
-})) |dep| {
-    step.root_module.addImport("uucode", dep.module("uucode"));
-}
+});
+step.root_module.addImport("uucode", dep.module("uucode"));
 ```
 
 ### Advanced configuration

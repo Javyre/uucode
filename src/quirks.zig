@@ -25,14 +25,14 @@ const builtin = @import("builtin");
 /// is negligible, but we have some asserts inside tight loops and hotpaths
 /// that cause significant overhead (as much as 15-20%) when they don't get
 /// optimized out.
-pub const inlineAssert = switch (builtin.mode) {
+pub const inlineAssert = switch (builtin.optimize) {
     // In debug builds we just use std.debug.assert because this
     // fixes up stack traces. `inline` causes broken stack traces. This
     // is probably a Zig compiler bug but until it is fixed we have to
     // do this for development sanity.
-    .Debug => std.debug.assert,
+    .debug => std.debug.assert,
 
-    .ReleaseSmall, .ReleaseSafe, .ReleaseFast => (struct {
+    .small, .safe, .fast => (struct {
         inline fn assert(ok: bool) void {
             if (!ok) unreachable;
         }

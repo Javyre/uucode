@@ -22,7 +22,7 @@ pub fn MultiSlice(comptime T: type) type {
 
         pub fn FieldType(comptime field: Field) type {
             @setEvalBranchQuota(50_000);
-            return std.meta.fieldInfo(T, field).type;
+            return @FieldType(T, @tagName(field));
         }
 
         pub fn items(self: Self, comptime field: Field) []FieldType(field) {

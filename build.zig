@@ -132,16 +132,16 @@ pub fn build(b: *std.Build) void {
 
         // There's a bug where building tables in ReleaseFast doesn't work,
         // that I'll be investigating in a follow up commit.
-        .Debug,
+        .debug,
         tables_path_opt,
         build_config_path,
     );
 
     // b.addModule with an existing module
-    _ = b.modules.put(b.allocator, b.dupe("uucode"), mod.lib) catch @panic("OOM");
-    _ = b.modules.put(b.allocator, b.dupe("uucode_build_config"), mod.build_config) catch @panic("OOM");
+    _ = b.modules.put(b.allocator, b.graph.dupeString("uucode"), mod.lib) catch @panic("OOM");
+    _ = b.modules.put(b.allocator, b.graph.dupeString("uucode_build_config"), mod.build_config) catch @panic("OOM");
     if (mod.gen_build_config) |btc| {
-        _ = b.modules.put(b.allocator, b.dupe("uucode_gen_build_config"), btc) catch @panic("OOM");
+        _ = b.modules.put(b.allocator, b.graph.dupeString("uucode_gen_build_config"), btc) catch @panic("OOM");
     }
     b.addNamedLazyPath("tables.zig", mod.tables_path);
 
@@ -152,7 +152,7 @@ pub fn build(b: *std.Build) void {
 
         // There's a bug where building tables in ReleaseFast doesn't work,
         // that I'll be investigating in a follow up commit.
-        .Debug,
+        .debug,
         null,
         b.path("src/test/build_config.zig"),
     );
@@ -298,7 +298,7 @@ fn buildBuildConfig(
 fn generateTables(
     b: *std.Build,
     build_config_path: std.Build.LazyPath,
-    generate_optimize: std.builtin.OptimizeMode,
+    generate_optimize: std.lang.Optimize,
 ) struct {
     generate: *std.Build.Module,
     build_config: *std.Build.Module,
@@ -352,7 +352,7 @@ fn generateTables(
     while (ucd_files.next()) |file| {
         run_gen_exe.addFileInput(b.path(b.fmt("ucd/{s}", .{file})));
     }
-    const tables_path = run_gen_exe.addOutputFileArg("tables.zig");
+    const tables_path = run_gen_exe.addOutputFileArg2("tables.zig", .{});
 
     return .{
         .tables = tables_path,
@@ -364,8 +364,8 @@ fn generateTables(
 fn createLibMod(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    generate_optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
+    generate_optimize: std.lang.Optimize,
     tables_path_opt: ?std.Build.LazyPath,
     build_config_path: std.Build.LazyPath,
 ) struct {
@@ -551,7 +551,7 @@ test "complex build config with all fields_0 through fields_9" {
     var i: usize = 0;
 
     for (substrings) |substring| {
-        const foundI = std.mem.indexOfPos(u8, build_config, i, substring);
+        const foundI = std.mem.findPos(u8, build_config, i, substring);
         try std.testing.expect(foundI != null);
         try std.testing.expect(foundI.? > i);
         i = foundI.?;
